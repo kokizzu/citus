@@ -176,10 +176,6 @@ typedef struct TableConversionReturn
 	List *foreignKeyCommands;
 }TableConversionReturn;
 
-
-/* Config variable managed via guc.c */
-extern int ReplicationModel;
-
 /* Size functions */
 extern Datum citus_table_size(PG_FUNCTION_ARGS);
 extern Datum citus_total_relation_size(PG_FUNCTION_ARGS);

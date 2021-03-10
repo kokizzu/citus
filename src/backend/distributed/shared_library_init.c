@@ -141,12 +141,6 @@ static const struct config_enum_entry task_assignment_policy_options[] = {
 	{ NULL, 0, false }
 };
 
-static const struct config_enum_entry replication_model_options[] = {
-	{ "statement", REPLICATION_MODEL_COORDINATOR, false },
-	{ "streaming", REPLICATION_MODEL_STREAMING, false },
-	{ NULL, 0, false }
-};
-
 static const struct config_enum_entry task_executor_type_options[] = {
 	{ "adaptive", MULTI_EXECUTOR_ADAPTIVE, false },
 	{ "real-time", DUMMY_REAL_TIME_EXECUTOR_ENUM_VALUE, false }, /* keep it for backward comp. */
@@ -1371,20 +1365,6 @@ RegisterCitusConfigVariables(void)
 		task_assignment_policy_options,
 		PGC_USERSET,
 		GUC_STANDARD,
-		NULL, NULL, NULL);
-
-	DefineCustomEnumVariable(
-		"citus.replication_model",
-		gettext_noop("Sets the replication model to be used for distributed tables."),
-		gettext_noop("Depending upon the execution environment, statement- or streaming-"
-					 "based replication modes may be employed. Though most Citus deploy-"
-					 "ments will simply use statement replication, hosted and MX-style"
-					 "deployments should set this parameter to 'streaming'."),
-		&ReplicationModel,
-		REPLICATION_MODEL_COORDINATOR,
-		replication_model_options,
-		PGC_SUSET,
-		GUC_SUPERUSER_ONLY,
 		NULL, NULL, NULL);
 
 	DefineCustomEnumVariable(

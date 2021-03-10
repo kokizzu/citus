@@ -461,15 +461,6 @@ GetFunctionColocationId(Oid functionOid, char *colocateWithTableName,
 			EnsureFunctionCanBeColocatedWithTable(functionOid, distributionArgumentOid,
 												  colocatedTableId);
 		}
-		else if (ReplicationModel == REPLICATION_MODEL_COORDINATOR)
-		{
-			/* streaming replication model is required for metadata syncing */
-			ereport(ERROR, (errmsg("cannot create a function with a distribution "
-								   "argument when citus.replication_model is "
-								   "'statement'"),
-							errhint("Set citus.replication_model to 'streaming' "
-									"before creating distributed tables")));
-		}
 	}
 	else
 	{

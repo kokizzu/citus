@@ -86,11 +86,6 @@
  */
 #define LOG_PER_TUPLE_AMOUNT 1000000
 
-
-/* Replication model to use when creating distributed tables */
-int ReplicationModel = REPLICATION_MODEL_COORDINATOR;
-
-
 /* local function forward declarations */
 static char DecideReplicationModel(char distributionMethod, bool viaDeprecatedAPI);
 static void CreateHashDistributedTableShards(Oid relationId, int shardCount,
@@ -631,45 +626,26 @@ DropFKeysRelationInvolvedWithTableType(Oid relationId, int tableTypeFlag)
 
 /*
  * DecideReplicationModel function decides which replication model should be
- * used depending on given distribution configuration and global ReplicationModel
- * variable. If ReplicationModel conflicts with distribution configuration, this
- * function errors out.
+ * used depending on given distribution configuration.
  */
 static char
 DecideReplicationModel(char distributionMethod, bool viaDeprecatedAPI)
 {
 	if (viaDeprecatedAPI)
 	{
-		if (ReplicationModel != REPLICATION_MODEL_COORDINATOR)
-		{
-			ereport(NOTICE, (errmsg("using statement-based replication"),
-							 errdetail("The current replication_model setting is "
-									   "'streaming', which is not supported by "
-									   "master_create_distributed_table."),
-							 errhint("Use create_distributed_table to use the streaming "
-									 "replication model.")));
-		}
-
 		return REPLICATION_MODEL_COORDINATOR;
 	}
 	else if (distributionMethod == DISTRIBUTE_BY_NONE)
 	{
 		return REPLICATION_MODEL_2PC;
 	}
-	else if (distributionMethod == DISTRIBUTE_BY_HASH)
+	else if (ShardReplicationFactor > 1)
 	{
-		return ReplicationModel;
+		return REPLICATION_MODEL_COORDINATOR;
 	}
 	else
 	{
-		if (ReplicationModel != REPLICATION_MODEL_COORDINATOR)
-		{
-			ereport(NOTICE, (errmsg("using statement-based replication"),
-							 errdetail("Streaming replication is supported only for "
-									   "hash-distributed tables.")));
-		}
-
-		return REPLICATION_MODEL_COORDINATOR;
+		return REPLICATION_MODEL_STREAMING;
 	}
 
 	/* we should not reach to this point */
