@@ -1529,6 +1529,7 @@ MultiTableNodeList(List *tableEntryList, List *rangeTableList)
 		tableNode->partitionColumn = partitionColumn;
 		tableNode->alias = rangeTableEntry->alias;
 		tableNode->referenceNames = rangeTableEntry->eref;
+		tableNode->includePartitions = GetOldInh(rangeTableEntry);
 
 		tableNodeList = lappend(tableNodeList, tableNode);
 	}

@@ -46,6 +46,9 @@ SELECT * FROM partitioning_test ORDER BY 1;
 
 SELECT * FROM partitioning_hash_test ORDER BY 1;
 
+-- should not return results when only querying parent
+SELECT * FROM ONLY partitioning_test ORDER BY 1;
+
 -- see partitioned table and its partitions are distributed
 SELECT
 	logicalrelid
@@ -674,6 +677,50 @@ FROM
 ) AS final_query
 GROUP BY types
 ORDER BY types;
+
+-- subquery with UNIONs on partitioned table, but only scan (empty) parent for some
+SELECT ("final_query"."event_types") as types, count(*) AS sumOfEventType
+FROM
+  (SELECT *, random()
+   FROM
+     (SELECT
+        "t"."user_id", "t"."time", unnest("t"."collected_events") AS "event_types"
+      FROM
+        (SELECT
+            "t1"."user_id", min("t1"."time") AS "time", array_agg(("t1"."event") ORDER BY TIME ASC, event DESC) AS collected_events
+         FROM(
+                  (SELECT
+                    "events"."user_id", "events"."time", 0 AS event
+                   FROM
+                    partitioned_events_table as  "events"
+                   WHERE
+                    event_type IN (1, 2) )
+               UNION
+                    (SELECT
+                        "events"."user_id", "events"."time", 1 AS event
+                     FROM
+                        partitioned_events_table as "events"
+                     WHERE
+                        event_type IN (3, 4) )
+               UNION
+                    (SELECT
+                        "events"."user_id", "events"."time", 2 AS event
+                     FROM
+                        ONLY partitioned_events_table as  "events"
+                     WHERE
+                        event_type IN (5, 6) )
+               UNION
+                    (SELECT
+                        "events"."user_id", "events"."time", 3 AS event
+                     FROM
+                        ONLY partitioned_events_table as "events"
+                     WHERE
+                        event_type IN (1, 6))) t1
+         GROUP BY "t1"."user_id") AS t) "q"
+) AS final_query
+GROUP BY types
+ORDER BY types;
+
 
 -- UNION and JOIN on both partitioned and regular tables
 SELECT ("final_query"."event_types") as types, count(*) AS sumOfEventType
