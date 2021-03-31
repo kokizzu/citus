@@ -164,30 +164,29 @@ distributed_planner(Query *parse,
 		.boundParams = boundParams,
 	};
 
-	if (fastPathRouterQuery)
-	{
-		/*
-		 *  We need to copy the parse tree because the FastPathPlanner modifies
-		 *  it. In the next branch we do the same for other distributed queries
-		 *  too, but for those it needs to be done AFTER calling
-		 *  AssignRTEIdentities.
-		 */
-		planContext.originalQuery = copyObject(parse);
-	}
-	else if (needsDistributedPlanning)
+	if (needsDistributedPlanning)
 	{
 		/*
 		 * standard_planner scribbles on it's input, but for deparsing we need the
-		 * unmodified form. Note that before copying we call
-		 * AssignRTEIdentities, which is needed because these identities need
-		 * to be present in the copied query too.
+		 * unmodified form. Before copying we call AssignRTEIdentities to be able
+		 * to match RTEs in the rewritten query tree with those in the original
+		 * tree.
 		 */
 		rteIdCounter = AssignRTEIdentities(rangeTableList, rteIdCounter);
+
 		planContext.originalQuery = copyObject(parse);
 
-		bool setPartitionedTablesInherited = false;
-		AdjustPartitioningForDistributedPlanning(rangeTableList,
-												 setPartitionedTablesInherited);
+		/*
+		 * When there are partitioned tables (not applicable to fast path),
+		 * pretend that they are regular tables to avoid unnecessary work
+		 * in standard_planner.
+		 */
+		if (!fastPathRouterQuery)
+		{
+			bool setPartitionedTablesInherited = false;
+			AdjustPartitioningForDistributedPlanning(rangeTableList,
+													 setPartitionedTablesInherited);
+		}
 	}
 
 	/*
@@ -470,12 +469,6 @@ GetRTEIdentity(RangeTblEntry *rte)
 bool
 GetOldInh(RangeTblEntry *rte)
 {
-	if (rte->values_lists == NIL)
-	{
-		/* RTE did not go through AssignRTEIdentity (must be fast path) */
-		return rte->inh;
-	}
-
 	return lsecond_int(rte->values_lists);
 }
 
