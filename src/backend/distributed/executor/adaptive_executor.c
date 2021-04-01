@@ -678,7 +678,6 @@ static int GetEventSetSize(List *sessionList);
 static int RebuildWaitEventSet(DistributedExecution *execution);
 static void ProcessWaitEvents(DistributedExecution *execution, WaitEvent *events, int
 							  eventCount, bool *cancellationReceived);
-static long MillisecondsBetweenTimestamps(instr_time startTime, instr_time endTime);
 static HeapTuple BuildTupleFromBytes(AttInMetadata *attinmeta, fmStringInfo *values);
 static AttInMetadata * TupleDescGetAttBinaryInMetadata(TupleDesc tupdesc);
 static int WorkerPoolCompare(const void *lhsKey, const void *rhsKey);
@@ -2886,19 +2885,6 @@ NextEventTimeout(DistributedExecution *execution)
 
 
 /*
- * MillisecondsBetweenTimestamps is a helper to get the number of milliseconds
- * between timestamps when it is expected to be small enough to fit in a
- * long.
- */
-static long
-MillisecondsBetweenTimestamps(instr_time startTime, instr_time endTime)
-{
-	INSTR_TIME_SUBTRACT(endTime, startTime);
-	return INSTR_TIME_GET_MILLISEC(endTime);
-}
-
-
-/*
  * ConnectionStateMachine opens a connection and descends into the transaction
  * state machine when ready.
  */
@@ -2945,8 +2931,6 @@ ConnectionStateMachine(WorkerSession *session)
 					HandleMultiConnectionSuccess(session);
 					UpdateConnectionWaitFlags(session,
 											  WL_SOCKET_READABLE | WL_SOCKET_WRITEABLE);
-
-					connection->connectionState = MULTI_CONNECTION_CONNECTED;
 					break;
 				}
 				else if (status == CONNECTION_BAD)
@@ -2987,8 +2971,6 @@ ConnectionStateMachine(WorkerSession *session)
 					HandleMultiConnectionSuccess(session);
 					UpdateConnectionWaitFlags(session,
 											  WL_SOCKET_READABLE | WL_SOCKET_WRITEABLE);
-
-					connection->connectionState = MULTI_CONNECTION_CONNECTED;
 
 					/* we should have a valid socket */
 					Assert(PQsocket(connection->pgConn) != -1);
@@ -3124,10 +3106,16 @@ HandleMultiConnectionSuccess(WorkerSession *session)
 	MultiConnection *connection = session->connection;
 	WorkerPool *workerPool = session->workerPool;
 
+	MarkConnectionConnected(connection);
+
 	ereport(DEBUG4, (errmsg("established connection to %s:%d for "
-							"session %ld",
+							"session %ld in %ld msecs",
 							connection->hostname, connection->port,
-							session->sessionId)));
+							session->sessionId,
+							MillisecondsBetweenTimestamps(
+								connection->connectionEstablishmentStart,
+								connection->
+								connectionEstablishmentEnd))));
 
 	workerPool->activeConnectionCount++;
 	workerPool->idleConnectionCount++;
