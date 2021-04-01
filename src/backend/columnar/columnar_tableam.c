@@ -119,34 +119,6 @@ static Datum * detoast_values(TupleDesc tupleDesc, Datum *orig_values, bool *isn
 /* Custom tuple slot ops used for columnar. Initialized in columnar_tableam_init(). */
 static TupleTableSlotOps TTSOpsColumnar;
 
-static List *
-RelationColumnList(TupleDesc tupdesc)
-{
-	List *columnList = NIL;
-
-	for (int i = 0; i < tupdesc->natts; i++)
-	{
-		Index varno = 1;
-		AttrNumber varattno = i + 1;
-		Oid vartype = tupdesc->attrs[i].atttypid;
-		int32 vartypmod = tupdesc->attrs[i].atttypmod;
-		Oid varcollid = tupdesc->attrs[i].attcollation;
-		Index varlevelsup = 0;
-
-		if (tupdesc->attrs[i].attisdropped)
-		{
-			continue;
-		}
-
-		Var *var = makeVar(varno, varattno, vartype, vartypmod,
-						   varcollid, varlevelsup);
-		columnList = lappend(columnList, var);
-	}
-
-	return columnList;
-}
-
-
 static const TupleTableSlotOps *
 columnar_slot_callbacks(Relation relation)
 {
@@ -241,18 +213,13 @@ static ColumnarReadState *
 init_columnar_read_state(Relation relation, TupleDesc tupdesc, Bitmapset *attr_needed,
 						 List *scanQual)
 {
-	List *columnList = RelationColumnList(tupdesc);
-	ListCell *columnCell = NULL;
-
 	List *neededColumnList = NIL;
 
-	/* only collect columns that we need for the scan */
-	foreach(columnCell, columnList)
+	for (int i = 0; i < tupdesc->natts; i++)
 	{
-		Var *var = castNode(Var, lfirst(columnCell));
-		if (bms_is_member(var->varattno - 1, attr_needed))
+		if (bms_is_member(i, attr_needed) && !tupdesc->attrs[i].attisdropped)
 		{
-			neededColumnList = lappend(neededColumnList, var);
+			neededColumnList = lappend_int(neededColumnList, i + 1);
 		}
 	}
 
@@ -648,8 +615,17 @@ columnar_relation_copy_for_cluster(Relation OldHeap, Relation NewHeap,
 														columnarOptions,
 														targetDesc);
 
+	List *projectedColumnList = NIL;
+	for (int i = 0; i < sourceDesc->natts; i++)
+	{
+		if (!sourceDesc->attrs[i].attisdropped)
+		{
+			projectedColumnList = lappend_int(projectedColumnList, i + 1);
+		}
+	}
+
 	ColumnarReadState *readState = ColumnarBeginRead(OldHeap, sourceDesc,
-													 RelationColumnList(sourceDesc),
+													 projectedColumnList,
 													 NULL);
 
 	Datum *values = palloc0(sourceDesc->natts * sizeof(Datum));

@@ -415,12 +415,12 @@ ReadChunkGroupNextRow(ChunkGroupReadState *chunkGroupReadState, Datum *columnVal
 	 */
 	memset(columnNulls, true, sizeof(bool) * chunkGroupReadState->columnCount);
 
-	Var *projectedColumn = NULL;
-	foreach_ptr(projectedColumn, chunkGroupReadState->projectedColumnList)
+	const ChunkData *chunkGroupData = chunkGroupReadState->chunkGroupData;
+	const int rowIndex = chunkGroupReadState->currentRow;
+	ListCell *lc;
+	foreach(lc, chunkGroupReadState->projectedColumnList)
 	{
-		const ChunkData *chunkGroupData = chunkGroupReadState->chunkGroupData;
-		const int rowIndex = chunkGroupReadState->currentRow;
-		uint32 columnIndex = projectedColumn->varattno - 1;
+		const uint32 columnIndex = lfirst_int(lc) - 1;
 
 		if (chunkGroupData->existsArray[columnIndex][rowIndex])
 		{
@@ -1010,12 +1010,11 @@ static bool *
 ProjectedColumnMask(uint32 columnCount, List *projectedColumnList)
 {
 	bool *projectedColumnMask = palloc0(columnCount * sizeof(bool));
-	ListCell *columnCell = NULL;
+	ListCell *lc;
 
-	foreach(columnCell, projectedColumnList)
+	foreach(lc, projectedColumnList)
 	{
-		Var *column = (Var *) lfirst(columnCell);
-		uint32 columnIndex = column->varattno - 1;
+		uint32 columnIndex = lfirst_int(lc) - 1;
 		projectedColumnMask[columnIndex] = true;
 	}
 
